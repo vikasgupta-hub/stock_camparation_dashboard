@@ -1,0 +1,15 @@
+CREATE DATABASE IF NOT EXISTS stock_price;
+USE stock_price;
+
+CREATE TABLE IF NOT EXISTS stock_prices (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    stock_name VARCHAR(50) NOT NULL,
+    interval_type VARCHAR(10) NOT NULL,
+    timestamp DATETIME NOT NULL,
+    open DECIMAL(18,4),
+    high DECIMAL(18,4),
+    low DECIMAL(18,4),
+    close DECIMAL(18,4),
+    volume BIGINT,
+    UNIQUE KEY unique_stock_interval_time (stock_name, interval_type, timestamp)
+);
