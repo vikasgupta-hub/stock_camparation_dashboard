@@ -1,0 +1,87 @@
+import pandas as pd
+import mysql.connector
+import os
+import math
+
+# -----------------------
+# MySQL connection
+# -----------------------
+conn = mysql.connector.connect(
+    host="localhost",
+    user="root",
+    password="vikasgupta",
+    database="stock_price"
+)
+cursor = conn.cursor()
+
+folder_path = r"C:\Users\anjal\OneDrive\Desktop\stock price"
+
+for file in os.listdir(folder_path):
+    if not file.endswith(".csv"):
+        continue
+
+    stock_name = file.split("_")[0]
+    interval = file.split("_")[1].replace(".csv", "")
+    file_path = os.path.join(folder_path, file)
+
+    df = pd.read_csv(file_path)
+
+    required_cols = ["timestamp", "open", "high", "low", "close", "volume"]
+
+    # Skip if columns missing
+    if not all(col in df.columns for col in required_cols):
+        print(f"Skipped {file}: missing columns")
+        continue
+
+    # Datetime safe
+    df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+
+    # 🔥 HARD CLEANING (THIS FIXES YOUR ERROR)
+    df = df.dropna(subset=["timestamp", "open", "high", "low", "close"])
+
+    data = []
+    for row in df.itertuples(index=False):
+        # Extra safety for NaN / inf
+        if any(
+            x is None or
+            (isinstance(x, float) and (math.isnan(x) or math.isinf(x)))
+            for x in [row.open, row.high, row.low, row.close]
+        ):
+            continue
+
+        volume = None
+        if not (row.volume is None or (isinstance(row.volume, float) and math.isnan(row.volume))):
+            volume = int(row.volume)
+
+        data.append((
+            stock_name,
+            interval,
+            row.timestamp,
+            float(row.open),
+            float(row.high),
+            float(row.low),
+            float(row.close),
+            volume
+        ))
+
+    if not data:
+        print(f"{file} skipped (no clean rows)")
+        continue
+
+    sql = """
+    INSERT IGNORE INTO stock_prices
+    (stock_name, interval_type, timestamp, open, high, low, close, volume)
+    VALUES (%s,%s,%s,%s,%s,%s,%s,%s)
+    """
+
+    try:
+        cursor.executemany(sql, data)
+        conn.commit()
+        print(f"{file} imported ✅ ({len(data)} rows)")
+    except Exception as e:
+        print(f"❌ {file} failed:", e)
+        conn.rollback()
+
+cursor.close()
+conn.close()
+print("ALL FILES PROCESSED 🚀")
